@@ -56,12 +56,6 @@ pipeline {
                       %IMAGE_NAME%
                 '''
             }
-            post {
-                always {
-                    bat 'docker logs %CONTAINER_NAME% 2>NUL'
-                    bat 'docker rm -f %CONTAINER_NAME% 2>NUL'
-                }
-            }
         }
 
         stage('Health Check') {
@@ -81,6 +75,13 @@ pipeline {
                     }
                     throw "Health check failed after waiting for the container to start."
                 '''
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                bat 'docker logs %CONTAINER_NAME% 2>NUL'
+                bat 'docker rm -f %CONTAINER_NAME% 2>NUL'
             }
         }
     }
