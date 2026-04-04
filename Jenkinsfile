@@ -5,6 +5,8 @@ pipeline {
         IMAGE_NAME = 'ai-chatbot'
         CONTAINER_NAME = 'ai-chatbot-jenkins'
         APP_PORT = '5000'
+        OLLAMA_MODEL = 'llama3.2'
+        FLASK_SECRET_KEY = 'jenkins-local-secret'
     }
 
     options {
@@ -48,14 +50,15 @@ pipeline {
                     docker rm -f %CONTAINER_NAME% 2>NUL
                     docker run -d --name %CONTAINER_NAME% ^
                       -p %APP_PORT%:5000 ^
-                      --env-file .env ^
                       -e OLLAMA_HOST=http://host.docker.internal:11434 ^
+                      -e OLLAMA_MODEL=%OLLAMA_MODEL% ^
+                      -e FLASK_SECRET_KEY=%FLASK_SECRET_KEY% ^
                       %IMAGE_NAME%
                 '''
             }
             post {
                 always {
-                    bat 'docker logs %CONTAINER_NAME%'
+                    bat 'docker logs %CONTAINER_NAME% 2>NUL'
                     bat 'docker rm -f %CONTAINER_NAME% 2>NUL'
                 }
             }
