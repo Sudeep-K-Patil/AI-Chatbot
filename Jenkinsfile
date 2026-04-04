@@ -10,6 +10,7 @@ pipeline {
     options {
         timestamps()
         disableConcurrentBuilds()
+        skipDefaultCheckout(true)
     }
 
     triggers {
@@ -19,7 +20,17 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                retry(3) {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: scm.branches ?: [[name: '*/main']],
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [
+                            [$class: 'CloneOption', shallow: true, depth: 1, noTags: false, timeout: 20]
+                        ],
+                        userRemoteConfigs: scm.userRemoteConfigs
+                    ])
+                }
                 bat 'git rev-parse --abbrev-ref HEAD'
                 bat 'git rev-parse --short HEAD'
             }
@@ -41,6 +52,12 @@ pipeline {
                       -e OLLAMA_HOST=http://host.docker.internal:11434 ^
                       %IMAGE_NAME%
                 '''
+            }
+            post {
+                always {
+                    bat 'docker logs %CONTAINER_NAME%'
+                    bat 'docker rm -f %CONTAINER_NAME% 2>NUL'
+                }
             }
         }
 
@@ -65,10 +82,4 @@ pipeline {
         }
     }
 
-    post {
-        always {
-            bat 'docker logs %CONTAINER_NAME%'
-            bat 'docker rm -f %CONTAINER_NAME% 2>NUL'
-        }
-    }
 }
