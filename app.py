@@ -21,6 +21,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-this-in-production")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 PORT = int(os.getenv("PORT", "5000"))
+OLLAMA_FALLBACK_HOST = "http://host.docker.internal:11434"
 
 
 HTML_PAGE = """
@@ -323,21 +324,31 @@ def generate_reply(messages: List[Dict[str, str]]) -> str:
             "stream": False,
         }
     )
-    req = urlrequest.Request(
-        f"{OLLAMA_HOST}/api/chat",
-        data=payload.encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
 
-    try:
-        with urlrequest.urlopen(req, timeout=120) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except error.URLError as exc:
+    hosts = [OLLAMA_HOST]
+    if OLLAMA_FALLBACK_HOST not in hosts:
+        hosts.append(OLLAMA_FALLBACK_HOST)
+
+    last_error = None
+    for host in hosts:
+        req = urlrequest.Request(
+            f"{host}/api/chat",
+            data=payload.encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urlrequest.urlopen(req, timeout=120) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except error.URLError as exc:
+            last_error = exc
+    else:
         raise RuntimeError(
-            "Cannot reach Ollama. Make sure Ollama is installed, running, and available at "
-            f"{OLLAMA_HOST}."
-        ) from exc
+            "Cannot reach Ollama. Make sure Ollama is installed and running. Tried: "
+            f"{', '.join(hosts)}."
+        ) from last_error
 
     message = data.get("message", {})
     content = (message.get("content") or "").strip()
